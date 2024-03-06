@@ -35,7 +35,7 @@ class UploadedDto
     /**
      * @var string|null
      */
-    public string|null $mimeType;
+    public string|bool|null $mimeType;
 
     /**
      * @var int|null
@@ -80,7 +80,7 @@ class UploadedDto
         string|null      $path = null,
         string|null      $originalName = null,
         string|null      $newName = null,
-        string|null      $mimeType = null,
+        string|bool|null $mimeType = null,
         int|null         $size = null,
         array            $extra = [],
         bool             $wasSuccessful = false,

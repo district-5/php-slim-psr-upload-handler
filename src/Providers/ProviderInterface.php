@@ -27,5 +27,13 @@ interface ProviderInterface
      * @throws UploadErrorException
      * @throws UploadConfigException
      */
-    function handle(UploadedFile|array $fileOrFiles): UploadedDto|array;
+    function handleFromUpload(UploadedFile|array $fileOrFiles): UploadedDto|array;
+
+    /**
+     * @param string|string[] $filePathOrPaths
+     * @return UploadedDto|array
+     * @throws UploadErrorException
+     * @throws UploadConfigException
+     */
+    function handleFromLocal(array|string $filePathOrPaths): UploadedDto|array;
 }

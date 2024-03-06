@@ -28,7 +28,7 @@ class LocalFileStorageProvider extends ProviderAbstract
      * @throws UploadFileExistsException
      * @throws Throwable
      */
-    protected function processFile(UploadedFile $file): UploadedDto
+    protected function processFileFromUpload(UploadedFile $file): UploadedDto
     {
         try {
             $fileName = $this->getFileName($file);
@@ -51,6 +51,57 @@ class LocalFileStorageProvider extends ProviderAbstract
                 $fileName,
                 $file->getClientMediaType(),
                 $file->getSize(),
+                pathinfo($path),
+                true
+            );
+        } catch (Throwable $e) {
+            if ($this->suppressException()) {
+                return UploadedDto::createError($this, $e);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param string $filePath
+     * @return UploadedDto
+     * @throws UploadConfigException
+     * @throws UploadFileExistsException
+     * @throws Throwable
+     */
+    protected function processFileFromLocal(string $filePath): UploadedDto
+    {
+        try {
+            if (!file_exists($filePath)) {
+                throw new UploadFileExistsException(
+                    sprintf('File does not exist: %s', $filePath)
+                );
+            }
+
+            $fileName = $this->getFileName($filePath);
+
+            $rawPath = $this->config['path'];
+            $path = rtrim($rawPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fileName;
+            if ($this->getConfig('overwrite', true, false) === false && file_exists($path) === true) {
+                throw new UploadFileExistsException(
+                    sprintf('File already exists: %s', $fileName)
+                );
+            }
+            $baseName = basename($filePath);
+            $mime = mime_content_type($filePath);
+            $size = filesize($filePath);
+
+            copy($filePath, $path);
+
+            return new UploadedDto(
+                $this,
+                null,
+                $rawPath,
+                $baseName,
+                $fileName,
+                $mime,
+                $size,
                 pathinfo($path),
                 true
             );

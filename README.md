@@ -85,17 +85,52 @@ $app->post('/upload', function (Request $request, Response $response, $args) {
     /* @var $container \DI\Container */
     $uploadHandler = $container->get(UploadHandler::class);
     /* @var $uploadHandler UploadHandler */
-    $result = $uploadHandler->handle($file, 'example-google-cloud-storage-provider');
-    // or: $result = $uploadHandler->handle($file, 'example-local-file-provider');
+    $result = $uploadHandler->handleFromUpload('example-google-cloud-storage-provider', $file);
+    // or: $result = $uploadHandler->handleFromUpload('example-local-file-provider', $filePath);
     return $response->withJson($result);
 });
 
+```
+
+Likewise, you can also upload from a local file path...
+
+```php
+$app->post('/upload', function (Request $request, Response $response, $args) {
+
+    $filePath = '/path/to/file.jpg';
+    /* @var $container \DI\Container */
+    $uploadHandler = $container->get(UploadHandler::class);
+    /* @var $uploadHandler UploadHandler */
+    $result = $uploadHandler->handleFromLocal('example-google-cloud-storage-provider', $filePath);
+    // or: $result = $uploadHandler->handleFromLocal('example-local-file-provider', $filePath);
+    return $response->withJson($result);
+});
 ```
 
 ### Creating your own provider...
 
 To create your own provider, you need to extend the `District5\UploadHandler\Provider\ProviderAbstract` class.
 The `ProviderAbstract` class provides a lot of the boilerplate code for you.
+
+Ultimately, there are three required methods to implement:
+ - `processFileFromUpload` - This method is called when the file is uploaded and is a `Slim\Psr7\UploadedFile` object.
+ - `processFileFromLocal` - This method is called when the file is being uploaded from a local file path.
+ - `getRequiredConfigKeys` - This method should return an array of required configuration keys.
+
+There are also optional methods to override:
+ - `getOptionalConfigKeys` - This method should return an array of configuration keys to values that aren't required to
+   be provided, and can default to a value, for example, if you were adding image resize before upload, you could use...
+   ```php
+   protected function getOptionalConfigKeys(): array
+   {
+        return [
+            'allowedExtensions' => ['jpg', 'jpeg', 'png', 'gif'],
+            'maxWidth' => 1920,
+        ];
+    }
+    ```
+   Ultimately, those values provided would be the default, unless overridden in the initial configuration for the
+   provider in the `handlers` config array.
 
 ```php
 <?php
@@ -113,37 +148,73 @@ class MyFileProvider extends ProviderAbstract
      * @param UploadedFile $file
      * @return UploadedDto
      */
-    protected function processFile(UploadedFile $file): UploadedDto
+    protected function processFileFromUpload(UploadedFile $file): UploadedDto
     {
         try {
-          $fileName = $file->getClientFilename();
-          $newFileName = $this->getFileName($fileName);
-          
-          $localDirectory = $this->getConfig('path');
-          $localPath = rtrim($localDirectory, DIRECTORY_SEPARATOR) . '/' . $newFileName;
-          
-          $file->moveTo($localPath);
-          
-          return new UploadedDto(
-                  $this,
-                  null,
-                  $localPath,
-                  $file->getClientFilename(),
-                  $newFileName,
-                  $file->getClientMediaType(),
-                  $file->getSize(),
-                  pathinfo($localPath),
-                  true
-              );
+            $fileName = $file->getClientFilename();
+            $newFileName = $this->getFileName($fileName); // this handles the appending of a random string if required
+
+            $localDirectory = $this->getConfig('path');
+            $localPath = rtrim($localDirectory, DIRECTORY_SEPARATOR) . '/' . $newFileName;
+
+            $file->moveTo($localPath);
+
+            return new UploadedDto(
+                $this,
+                null,
+                $localPath,
+                $file->getClientFilename(),
+                $newFileName,
+                $file->getClientMediaType(),
+                $file->getSize(),
+                pathinfo($localPath),
+                true
+            );
         } catch (Throwable $e) {
             if ($this->suppressException()) {
                 return UploadedDto::createError($this, $e);
             }
-            
+
             throw $e; // re-throw the exception
         }
     }
+    
+    /**
+     * @param string $filePath
+     * @return UploadedDto
+     */
+    protected function processFileFromLocal(string $filePath): UploadedDto
+    {
+        try {
+            $fileName = basename($filePath);
+            $newFileName = $this->getFileName($fileName);
 
+            $localDirectory = $this->getConfig('path');
+            $localPath = rtrim($localDirectory, DIRECTORY_SEPARATOR) . '/' . $newFileName;
+
+            copy($filePath, $localPath);
+            $mime = finfo_file(finfo_open(FILEINFO_MIME_TYPE), $filePath);
+            $size = filesize($filePath);
+
+            return new UploadedDto(
+                $this,
+                null,
+                $localPath,
+                $baseName,
+                $newFileName,
+                $mime,
+                $size,
+                pathinfo($localPath),
+                true
+            );
+        } catch (Throwable $e) {
+            if ($this->suppressException()) {
+                return UploadedDto::createError($this, $e);
+            }
+
+            throw $e; // re-throw the exception
+        }
+    }
 
     /**
      * Get an array of required config keys. No values, just the keys.

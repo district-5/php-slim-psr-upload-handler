@@ -9,6 +9,7 @@ use District5\UploadHandler\UploadedDto;
 use Google\Cloud\Storage\Bucket;
 use Google\Cloud\Storage\StorageClient;
 use RuntimeException;
+use Slim\Psr7\Factory\StreamFactory;
 use Slim\Psr7\UploadedFile;
 use Throwable;
 
@@ -30,7 +31,7 @@ class GcsProvider extends ProviderAbstract
      * @throws UploadFileExistsException
      * @throws Throwable
      */
-    protected function processFile(UploadedFile $file): UploadedDto
+    protected function processFileFromUpload(UploadedFile $file): UploadedDto
     {
         try {
             $fileName = $this->getFileName($file);
@@ -70,6 +71,75 @@ class GcsProvider extends ProviderAbstract
                 $url,
                 $rawPath,
                 $name,
+                $fileName,
+                $mime,
+                $size,
+                $moreInfo,
+                true
+            );
+        } catch (Throwable $e) {
+            if ($this->suppressException()) {
+                return UploadedDto::createError($this, $e);
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * @param string $filePath
+     * @return UploadedDto
+     * @throws UploadConfigException
+     * @throws UploadFileExistsException
+     * @throws Throwable
+     */
+    protected function processFileFromLocal(string $filePath): UploadedDto
+    {
+        try {
+            if (!file_exists($filePath)) {
+                throw new RuntimeException(
+                    sprintf('File does not exist: %s', $filePath)
+                );
+            }
+
+            $fileName = $this->getFileName($filePath);
+
+            $rawPath = $this->config['path'] ?? null;
+            if ($rawPath !== null) {
+                $gcsPath = trim($rawPath, '/') . '/' . $fileName;
+            } else {
+                $gcsPath = $fileName;
+            }
+            $baseName = basename($filePath);
+            $mime = finfo_file(finfo_open(FILEINFO_MIME_TYPE), $filePath);
+            $size = filesize($filePath);
+
+
+            if ($this->getConfig('overwrite', true, false) === false && $this->bucket->object($gcsPath)->exists()) {
+                throw new UploadFileExistsException(
+                    sprintf('File already exists: %s', $fileName)
+                );
+            }
+
+            $object = $this->bucket->upload(
+                (new StreamFactory())->createStreamFromFile($filePath),
+                [
+                    'name' => $gcsPath,
+                    'predefinedAcl' => $this->config['acl']
+                ]
+            );
+            $moreInfo = $object->info();
+
+            $url = null;
+            if (str_contains($this->config['acl'], 'public')) {
+                $url = 'https://storage.googleapis.com/' . $this->config['bucket'] . '/' . $gcsPath;
+            }
+
+            return new UploadedDto(
+                $this,
+                $url,
+                $rawPath,
+                $baseName,
                 $fileName,
                 $mime,
                 $size,

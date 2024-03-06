@@ -73,7 +73,13 @@ abstract class ProviderAbstract implements ProviderInterface
      * @param UploadedFile $file
      * @return UploadedDto
      */
-    abstract protected function processFile(UploadedFile $file): UploadedDto;
+    abstract protected function processFileFromUpload(UploadedFile $file): UploadedDto;
+
+    /**
+     * @param string $filePath
+     * @return UploadedDto
+     */
+    abstract protected function processFileFromLocal(string $filePath): UploadedDto;
 
     /**
      * @param UploadedFile $file
@@ -126,22 +132,43 @@ abstract class ProviderAbstract implements ProviderInterface
     }
 
     /**
+     * @param string|string[] $filePathOrPaths
+     * @return UploadedDto|array
+     * @throws UploadErrorException
+     * @throws UploadConfigException
+     */
+    final public function handleFromLocal(array|string $filePathOrPaths): UploadedDto|array
+    {
+        if (is_array($filePathOrPaths)) {
+            $response = [];
+            foreach ($filePathOrPaths as $file) {
+                $response[] = $this->handleFromLocal($file);
+            }
+            return $response;
+        }
+
+        return $this->processFileFromLocal(
+            $filePathOrPaths
+        );
+    }
+
+    /**
      * @param UploadedFile|UploadedFile[] $fileOrFiles
      * @return UploadedDto|UploadedDto[]
      * @throws UploadErrorException
      * @throws UploadConfigException
      */
-    final public function handle(UploadedFile|array $fileOrFiles): UploadedDto|array
+    final public function handleFromUpload(UploadedFile|array $fileOrFiles): UploadedDto|array
     {
         if (is_array($fileOrFiles)) {
             $response = [];
             foreach ($fileOrFiles as $file) {
-                $response[] = $this->handle($file);
+                $response[] = $this->handleFromUpload($file);
             }
             return $response;
         }
 
-        return $this->processFile(
+        return $this->processFileFromUpload(
             $this->checkFile($fileOrFiles)
         );
     }
@@ -200,9 +227,13 @@ abstract class ProviderAbstract implements ProviderInterface
      * @param UploadedFile $file
      * @return string|null
      */
-    protected function getFileName(UploadedFile $file): ?string
+    protected function getFileName(UploadedFile|string $file): ?string
     {
-        $fileName = $file->getClientFilename();
+        if (is_string($file)) {
+            $fileName = basename($file);
+        } else {
+            $fileName = $file->getClientFilename();
+        }
         if ($this->config['appendRandom'] === true) {
             $unique = uniqid('', true);
             $baseName = explode('.', $fileName)[0];

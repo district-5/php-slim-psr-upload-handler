@@ -4,8 +4,11 @@ namespace District5\UploadHandler;
 
 
 use DI\Container;
+use District5\UploadHandler\Exception\UploadConfigException;
+use District5\UploadHandler\Exception\UploadErrorException;
 use District5\UploadHandler\Providers\GcsProvider;
 use District5\UploadHandler\Providers\LocalFileStorageProvider;
+use District5\UploadHandler\Providers\ProviderInterface;
 use RuntimeException;
 use Slim\Psr7\UploadedFile;
 
@@ -33,7 +36,7 @@ class UploadHandler
     /**
      * @var array
      */
-    private array $handlerInstances = [];
+    private array $providerInstances = [];
 
     /**
      * @var Container
@@ -43,7 +46,7 @@ class UploadHandler
     /**
      * @var array
      */
-    private array $actionMap = [
+    private array $handlerKeyToProviderMap = [
         'gcs' => GcsProvider::class,
         'local' => LocalFileStorageProvider::class
     ];
@@ -94,30 +97,61 @@ class UploadHandler
      * @param string $handlerName
      * @param UploadedFile|UploadedFile[] $data
      * @return UploadedDto|UploadedDto[]
+     * @throws UploadConfigException
+     * @throws UploadErrorException
      */
-    public function handle(string $handlerName, UploadedFile|array $data): UploadedDto|array
+    public function handleFromUpload(string $handlerName, UploadedFile|array $data): UploadedDto|array
     {
         if (!array_key_exists($handlerName, $this->handlers)) {
             throw new RuntimeException('Action not found');
         }
 
+        $handler = $this->getHandlerInstance($handlerName);
+
+        return $handler->handleFromUpload($data);
+    }
+
+    /**
+     * @param string $handlerName
+     * @param string|string[] $localFilePathOrPaths
+     * @return UploadedDto|UploadedDto[]
+     * @throws UploadConfigException
+     * @throws UploadErrorException
+     */
+    public function handleFromLocal(string $handlerName, string|array $localFilePathOrPaths): UploadedDto|array
+    {
+        if (!array_key_exists($handlerName, $this->handlers)) {
+            throw new RuntimeException('Action not found');
+        }
+
+        $handler = $this->getHandlerInstance($handlerName);
+
+        return $handler->handleFromLocal($localFilePathOrPaths);
+    }
+
+    /**
+     * @param string $handlerName
+     * @return ProviderInterface
+     */
+    private function getHandlerInstance(string $handlerName): ProviderInterface
+    {
         $actionData = $this->handlers[$handlerName];
         $provider = $actionData['provider'];
-        if (array_key_exists($handlerName, $this->handlerInstances)) {
-            $handler = $this->handlerInstances[$handlerName];
+        if (array_key_exists($handlerName, $this->providerInstances)) {
+            $handler = $this->providerInstances[$handlerName];
         } else {
-            if (!array_key_exists($provider, $this->actionMap)) {
+            if (!array_key_exists($provider, $this->handlerKeyToProviderMap)) {
                 if (class_exists($provider) === false) {
                     throw new RuntimeException('Provider handler not found');
                 } else {
-                    $this->actionMap[$provider] = $provider;
+                    $this->handlerKeyToProviderMap[$provider] = $provider;
                 }
             }
 
-            $this->handlerInstances[$handlerName] = new $this->actionMap[$provider]($handlerName, $actionData['config'], $this->options);
-            $handler = $this->handlerInstances[$handlerName];
+            $this->providerInstances[$handlerName] = new $this->handlerKeyToProviderMap[$provider]($handlerName, $actionData['config'], $this->options);
+            $handler = $this->providerInstances[$handlerName];
         }
 
-        return $handler->handle($data);
+        return $handler;
     }
 }
