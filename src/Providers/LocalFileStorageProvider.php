@@ -4,9 +4,9 @@ namespace District5\UploadHandler\Providers;
 
 
 use District5\UploadHandler\Exception\UploadConfigException;
+use District5\UploadHandler\Exception\UploadErrorException;
 use District5\UploadHandler\Exception\UploadFileExistsException;
 use District5\UploadHandler\UploadedDto;
-use Google\Cloud\Storage\Bucket;
 use Slim\Psr7\UploadedFile;
 use Throwable;
 
@@ -16,11 +16,6 @@ use Throwable;
  */
 class LocalFileStorageProvider extends ProviderAbstract
 {
-    /**
-     * @var Bucket
-     */
-    private Bucket $bucket;
-
     /**
      * @param UploadedFile $file
      * @return UploadedDto
@@ -32,9 +27,10 @@ class LocalFileStorageProvider extends ProviderAbstract
     {
         try {
             $fileName = $this->getFileName($file);
-
             $rawPath = $this->config['path'];
-            $path = rtrim($rawPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fileName;
+
+            $path = $this->establishPath($fileName, $rawPath);
+
             if ($this->getConfig('overwrite', true, false) === false && file_exists($path) === true) {
                 throw new UploadFileExistsException(
                     sprintf('File already exists: %s', $fileName)
@@ -68,6 +64,7 @@ class LocalFileStorageProvider extends ProviderAbstract
      * @return UploadedDto
      * @throws UploadConfigException
      * @throws UploadFileExistsException
+     * @throws UploadErrorException
      * @throws Throwable
      */
     protected function processFileFromLocal(string $filePath): UploadedDto
@@ -80,9 +77,10 @@ class LocalFileStorageProvider extends ProviderAbstract
             }
 
             $fileName = $this->getFileName($filePath);
-
             $rawPath = $this->config['path'];
-            $path = rtrim($rawPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fileName;
+
+            $path = $this->establishPath($fileName, $rawPath);
+
             if ($this->getConfig('overwrite', true, false) === false && file_exists($path) === true) {
                 throw new UploadFileExistsException(
                     sprintf('File already exists: %s', $fileName)
@@ -136,5 +134,35 @@ class LocalFileStorageProvider extends ProviderAbstract
         return [
             'path'
         ];
+    }
+
+    /**
+     * @return true[]
+     */
+    protected function getOptionalConfigKeys(): array
+    {
+        return [
+            'appendRandom' => true
+        ];
+    }
+
+    /**
+     * @param string|null $fileName
+     * @param string|null $rawPath
+     * @return string|null
+     * @throws UploadErrorException
+     */
+    private function establishPath(string|null $fileName, string|null $rawPath): string|null
+    {
+        if ($fileName === null) {
+            throw new UploadErrorException('File name was null');
+        }
+
+        $path = $fileName;
+        if ($rawPath !== null) {
+            $path = rtrim($rawPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $fileName;
+        }
+
+        return $path;
     }
 }

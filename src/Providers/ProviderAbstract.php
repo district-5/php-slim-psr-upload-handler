@@ -1,4 +1,7 @@
 <?php
+/**
+ * @noinspection PhpUnused
+ */
 
 namespace District5\UploadHandler\Providers;
 
@@ -88,7 +91,6 @@ abstract class ProviderAbstract implements ProviderInterface
      */
     protected function checkFile(UploadedFile $file): UploadedFile
     {
-        /* @var $file UploadedFile */
         if ($file->getError() !== UPLOAD_ERR_OK) {
             if ($file->getError() !== UPLOAD_ERR_INI_SIZE) {
                 throw new UploadErrorException(sprintf(
@@ -212,7 +214,7 @@ abstract class ProviderAbstract implements ProviderInterface
     {
         if (!array_key_exists($key, $this->config)) {
             if ($required === false) {
-                return null;
+                return $default;
             }
 
             throw new UploadConfigException(sprintf(
@@ -224,7 +226,7 @@ abstract class ProviderAbstract implements ProviderInterface
     }
 
     /**
-     * @param UploadedFile $file
+     * @param UploadedFile|string $file
      * @return string|null
      */
     protected function getFileName(UploadedFile|string $file): ?string

@@ -13,9 +13,10 @@
   "require": {
     "php": ">=8.1",
     "ext-fileinfo": "*",
+    "aws/aws-sdk-php": "3.*",
+    "google/cloud-storage": "^1.39",
     "php-di/slim-bridge": "^3.0",
-    "slim/psr7": "^1.6",
-    "google/cloud-storage": "^1.39"
+    "slim/psr7": "^1.6"
   },
   "autoload": {
     "psr-4": { "District5\\UploadHandler\\": "src/" }

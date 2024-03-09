@@ -1,4 +1,7 @@
 <?php
+/**
+ * @noinspection PhpUnused
+ */
 
 namespace District5\UploadHandler;
 
@@ -9,6 +12,7 @@ use District5\UploadHandler\Exception\UploadErrorException;
 use District5\UploadHandler\Providers\GcsProvider;
 use District5\UploadHandler\Providers\LocalFileStorageProvider;
 use District5\UploadHandler\Providers\ProviderInterface;
+use District5\UploadHandler\Providers\S3Provider;
 use RuntimeException;
 use Slim\Psr7\UploadedFile;
 
@@ -48,7 +52,8 @@ class UploadHandler
      */
     private array $handlerKeyToProviderMap = [
         'gcs' => GcsProvider::class,
-        'local' => LocalFileStorageProvider::class
+        'local' => LocalFileStorageProvider::class,
+        's3' => S3Provider::class
     ];
 
     /**
@@ -81,6 +86,14 @@ class UploadHandler
         $this->container->set(UploadHandler::class, function () {
             return self::$instance;
         });
+    }
+
+    /**
+     * @return Container
+     */
+    public function getContainer(): Container
+    {
+        return $this->container;
     }
 
     /**
@@ -137,9 +150,7 @@ class UploadHandler
     {
         $actionData = $this->handlers[$handlerName];
         $provider = $actionData['provider'];
-        if (array_key_exists($handlerName, $this->providerInstances)) {
-            $handler = $this->providerInstances[$handlerName];
-        } else {
+        if (!array_key_exists($handlerName, $this->providerInstances)) {
             if (!array_key_exists($provider, $this->handlerKeyToProviderMap)) {
                 if (class_exists($provider) === false) {
                     throw new RuntimeException('Provider handler not found');
@@ -149,9 +160,8 @@ class UploadHandler
             }
 
             $this->providerInstances[$handlerName] = new $this->handlerKeyToProviderMap[$provider]($handlerName, $actionData['config'], $this->options);
-            $handler = $this->providerInstances[$handlerName];
         }
 
-        return $handler;
+        return $this->providerInstances[$handlerName];
     }
 }

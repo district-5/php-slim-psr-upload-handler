@@ -1,5 +1,7 @@
 <?php
-
+/**
+ * @noinspection PhpUnused
+ */
 namespace District5\UploadHandler;
 
 use District5\UploadHandler\Providers\ProviderAbstract;
@@ -33,7 +35,7 @@ class UploadedDto
     public string|null $newName;
 
     /**
-     * @var string|null
+     * @var string|bool|null
      */
     public string|bool|null $mimeType;
 
@@ -68,7 +70,7 @@ class UploadedDto
      * @param string|null $path
      * @param string|null $originalName
      * @param string|null $newName
-     * @param string|null $mimeType
+     * @param string|bool|null $mimeType
      * @param int|null $size
      * @param array $extra
      * @param bool $wasSuccessful

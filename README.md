@@ -5,7 +5,9 @@
 This is a simple upload handler for Slim Framework. It is designed to be used with the PSR interfaces and is compatible
 with Slim 4.
 
-### Installation...
+Providers cover the following: Google Cloud Storage, AWS S3, and local files.
+
+Simply install with:
 
 ```bash
 composer require district5/slim-psr-upload-handler
@@ -19,7 +21,7 @@ composer require district5/slim-psr-upload-handler
         - `path` (string) - The directory to save the file to.
         - `overwrite` (bool) - Overwrite the file if it already exists.
         - `appendRandom` (bool) - Append a random string to the file name.
-        - `suppressExceptions` (bool) - Ignore errors and return the UploadedDto object regardless. Overrides the global
+        - `suppressExceptions` (bool) - Ignore errors and return the UploadedDto object regardless. Overrides the **global**
           `suppressExceptions` option.
 - Google Cloud Storage (Key: `gcs`)
     - This provider will save the file to Google Cloud Storage.
@@ -31,7 +33,21 @@ composer require district5/slim-psr-upload-handler
         - `overwrite` (bool) - Overwrite the file if it already exists.
         - `appendRandom` (bool) - Append a random string to the file name.
         - `acl` (string) - The Google Cloud Storage object ACL.
-        - `suppressExceptions` (bool) - Ignore errors and return the UploadedDto object regardless. Overrides the global
+        - `suppressExceptions` (bool) - Ignore errors and return the UploadedDto object regardless. Overrides the **global**
+          `suppressExceptions` option.
+- AWS S3 (Key: `s3`)
+    - This provider will save the file to Amazon S3.
+    - Configuration:
+        - `region` (string) - The region of the bucket.
+        - `version` (string) - The version of the S3 API to use.
+        - `bucket` (string) - The name of the bucket.
+        - `path` (string) - The path within to bucket the file, for example 'uploads' or 'images'. Leave empty (or null) for root.
+        - `accessKey` (string) - The access key for the bucket.
+        - `secretKey` (string) - The secret key for the bucket.
+        - `overwrite` (bool) - Overwrite the file if it already exists.
+        - `appendRandom` (bool) - Append a random string to the file name.
+        - `acl` (string) - The ACL for the object (public-read, private, etc.).
+        - `suppressExceptions` (bool) - Ignore errors and return the UploadedDto object regardless. Overrides the **global**
           `suppressExceptions` option.
 
 ### Usage...
@@ -64,11 +80,26 @@ $uploadHandlerConfig = [
                 'acl' => $env->get('GCS_OBJECT_ACL'), // the GCS object ACL
             ]
         ],
+        'example-aws-s3-provider' => [ // 'generic-file' is the action name, this can be anything you want
+            'provider' => 's3',
+            'config' => [
+                'suppressExceptions' => false, // suppress exceptions, or let them bubble up
+                'appendRandom' => true, // append a random string (using uniqid) to the file, or use the original name.  Overrides the global appendRandom option
+                'overwrite' => false, // overwrite the file if it already exists
+                'region' => $env->get('S3_REGION'), // the region of the bucket
+                'version' => $env->get('S3_VERSION'), // the version of the S3 API to use (typically 'latest')
+                'bucket' => $env->get('S3_BUCKET'), // the name of the bucket
+                'path' => $env->get('S3_OBJECT_PATH'), // or null/empty string for root
+                'accessKey' => $env->get('S3_ACCESS_KEY'), // the access key for the bucket
+                'secretKey' => $env->get('S3_SECRET_KEY'), // the secret key for the bucket
+                'acl' => $env->get('S3_OBJECT_ACL') // the acl for the object (public-read, private, etc.)
+            ]
+        ],
         'example-local-file-provider' => [ // 'generic-file' is the action name, this can be anything you want
             'provider' => 'local', // Or use the class name of LocalFileProvider::class
             'config' => [
-                'suppressExceptions' => false, // Override the global suppressExceptions option
-                'appendRandom' => false, // append a random string (using uniqid) to the file, or use the original name. Overrides the global appendRandom option
+                // 'suppressExceptions' => false, // Override the global suppressExceptions option
+                // 'appendRandom' => false, // append a random string (using uniqid) to the file, or use the original name. Overrides the global appendRandom option
                 'overwrite' => false, // overwrite the file if it already exists
                 'path' => $env->get('LOCAL_WRITABLE_DIRECTORY'), // the directory to save the file to (trailing slash is stripped)
             ]

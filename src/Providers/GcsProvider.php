@@ -4,6 +4,7 @@ namespace District5\UploadHandler\Providers;
 
 
 use District5\UploadHandler\Exception\UploadConfigException;
+use District5\UploadHandler\Exception\UploadErrorException;
 use District5\UploadHandler\Exception\UploadFileExistsException;
 use District5\UploadHandler\UploadedDto;
 use Google\Cloud\Storage\Bucket;
@@ -35,18 +36,17 @@ class GcsProvider extends ProviderAbstract
     {
         try {
             $fileName = $this->getFileName($file);
+            if ($fileName === null) {
+                throw new UploadErrorException('File name was null');
+            }
 
             $rawPath = $this->config['path'] ?? null;
-            if ($rawPath !== null) {
-                $gcsPath = trim($rawPath, '/') . '/' . $fileName;
-            } else {
-                $gcsPath = $fileName;
-            }
+            $cloudPath = $this->getGcsPath($fileName, $rawPath);
             $mime = $file->getClientMediaType();
             $size = $file->getSize();
             $name = $file->getClientFilename();
 
-            if ($this->getConfig('overwrite', true, false) === false && $this->bucket->object($gcsPath)->exists()) {
+            if ($this->getConfig('overwrite', true, false) === false && $this->bucket->object($cloudPath)->exists()) {
                 throw new UploadFileExistsException(
                     sprintf('File already exists: %s', $fileName)
                 );
@@ -55,16 +55,13 @@ class GcsProvider extends ProviderAbstract
             $object = $this->bucket->upload(
                 $file->getStream(),
                 [
-                    'name' => $gcsPath,
+                    'name' => $cloudPath,
                     'predefinedAcl' => $this->config['acl']
                 ]
             );
             $moreInfo = $object->info();
 
-            $url = null;
-            if (str_contains($this->config['acl'], 'public')) {
-                $url = 'https://storage.googleapis.com/' . $this->config['bucket'] . '/' . $gcsPath;
-            }
+            $url = $this->buildPublicUrl($cloudPath);
 
             return new UploadedDto(
                 $this,
@@ -91,6 +88,7 @@ class GcsProvider extends ProviderAbstract
      * @return UploadedDto
      * @throws UploadConfigException
      * @throws UploadFileExistsException
+     * @throws UploadErrorException
      * @throws Throwable
      */
     protected function processFileFromLocal(string $filePath): UploadedDto
@@ -103,19 +101,18 @@ class GcsProvider extends ProviderAbstract
             }
 
             $fileName = $this->getFileName($filePath);
+            if ($fileName === null) {
+                throw new UploadErrorException('File name was null');
+            }
 
             $rawPath = $this->config['path'] ?? null;
-            if ($rawPath !== null) {
-                $gcsPath = trim($rawPath, '/') . '/' . $fileName;
-            } else {
-                $gcsPath = $fileName;
-            }
+            $cloudPath = $this->getGcsPath($fileName, $rawPath);
             $baseName = basename($filePath);
             $mime = finfo_file(finfo_open(FILEINFO_MIME_TYPE), $filePath);
             $size = filesize($filePath);
 
 
-            if ($this->getConfig('overwrite', true, false) === false && $this->bucket->object($gcsPath)->exists()) {
+            if ($this->getConfig('overwrite', true, false) === false && $this->bucket->object($cloudPath)->exists()) {
                 throw new UploadFileExistsException(
                     sprintf('File already exists: %s', $fileName)
                 );
@@ -124,16 +121,13 @@ class GcsProvider extends ProviderAbstract
             $object = $this->bucket->upload(
                 (new StreamFactory())->createStreamFromFile($filePath),
                 [
-                    'name' => $gcsPath,
+                    'name' => $cloudPath,
                     'predefinedAcl' => $this->config['acl']
                 ]
             );
             $moreInfo = $object->info();
 
-            $url = null;
-            if (str_contains($this->config['acl'], 'public')) {
-                $url = 'https://storage.googleapis.com/' . $this->config['bucket'] . '/' . $gcsPath;
-            }
+            $url = $this->buildPublicUrl($cloudPath);
 
             return new UploadedDto(
                 $this,
@@ -207,5 +201,33 @@ class GcsProvider extends ProviderAbstract
         return [
             'appendRandom' => true
         ];
+    }
+
+    /**
+     * @param string $fileName
+     * @param mixed $rawPath
+     * @return string
+     */
+    protected function getGcsPath(string $fileName, mixed $rawPath): string
+    {
+        $gcsPath = $fileName;
+        if ($rawPath !== null) {
+            $gcsPath = trim($rawPath, '/') . '/' . $fileName;
+        }
+        return $gcsPath;
+    }
+
+    /**
+     * @param string $cloudPath
+     * @return string|null
+     */
+    protected function buildPublicUrl(string $cloudPath): ?string
+    {
+        $url = null;
+        if (str_contains($this->config['acl'], 'public')) {
+            $url = 'https://storage.googleapis.com/' . $this->config['bucket'] . '/' . $cloudPath;
+        }
+
+        return $url;
     }
 }

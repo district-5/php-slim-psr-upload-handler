@@ -1,4 +1,7 @@
 <?php
+/**
+ * @noinspection PhpUnused
+ */
 
 namespace District5\UploadHandler\Providers;
 
